@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>Frontend Simple</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            text-align: center;
+        }
+
+        h1 {
+            margin-bottom: 0.5rem;
+        }
+
+        p.description {
+            font-size: 1rem;
+            margin-bottom: 2rem;
+            color: #333;
+        }
+
+        #lista-palabras {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 8px 16px;
+            justify-items: center;
+            max-width: 800px;
+            margin: 0 auto;
+            text-align: left;
+        }
+
+        #lista-palabras a {
+            color: blue;
+            cursor: pointer;
+            text-decoration: none;
+        }
+
+        #lista-palabras a:hover {
+            text-decoration: underline;
+        }
+
+        #resultado {
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Lecturas Leon Dufour</h1>
+    <p class="description">Haz click en la palabra para descargar las lecturas.</p>
+
+    <div id="resultado"></div>
+    <div id="lista-palabras"></div>
+
+    <script>
+        function normalizarPalabra(palabra) {
+            return palabra
+                .toLowerCase()
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "");
+        }
+
+        async function cargarPalabras() {
+            try {
+                const res = await fetch('http://localhost:8000/palabras');
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                const palabras = data.palabras || [];
+
+                const listaDiv = document.getElementById('lista-palabras');
+                listaDiv.innerHTML = '';
+
+                palabras.forEach(p => {
+                    const enlace = document.createElement('a');
+                    enlace.href = '#';
+                    enlace.textContent = p;
+                    enlace.onclick = (e) => {
+                        e.preventDefault();
+                        descargarExcel(p);
+                    };
+                    listaDiv.appendChild(enlace);
+                });
+
+            } catch (err) {
+                document.getElementById('resultado').innerHTML =
+                    `<p style="color:red;">Error cargando palabras: ${err.message}</p>`;
+            }
+        }
+
+        async function descargarExcel(palabra) {
+            try {
+                const word = normalizarPalabra(palabra);
+                const response = await fetch(`http://localhost:8000/lecturas/${encodeURIComponent(word)}/excel`);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+                const blob = await response.blob();
+                let filename = `lecturas_${word}.pdf`;
+                const contentDisposition = response.headers.get('Content-Disposition');
+                if (contentDisposition) {
+                    const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/);
+                    if (filenameMatch) filename = filenameMatch[1];
+                }
+
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+
+                document.getElementById('resultado').innerHTML =
+                    `<p style="color: green;">✅ Archivo descargado: ${filename}</p>
+                     <p>Tamaño: ${(blob.size / 1024).toFixed(2)} KB</p>`;
+            } catch (error) {
+                document.getElementById('resultado').innerHTML =
+                    `<p style="color:red;">❌ Error: ${error.message}</p>`;
+            }
+        }
+
+        cargarPalabras();
+    </script>
+</body>
+
+</html>
